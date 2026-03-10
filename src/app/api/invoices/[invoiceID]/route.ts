@@ -1,11 +1,19 @@
-// Placeholder — implemented in Phase 2
-// GET /api/invoices/[invoiceID] — public invoice fetch
 import { NextRequest, NextResponse } from "next/server";
+import { getInvoiceByPublicId } from "@/lib/invoice";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ invoiceID: string }> }
 ) {
-  const { invoiceID } = await params;
-  return NextResponse.json({ invoiceID, data: null }, { status: 501 });
+  try {
+    const { invoiceID } = await params;
+    const invoice = await getInvoiceByPublicId(invoiceID);
+    if (!invoice) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    }
+    return NextResponse.json({ invoice });
+  } catch (err) {
+    console.error("[GET /api/invoices/[invoiceID]]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

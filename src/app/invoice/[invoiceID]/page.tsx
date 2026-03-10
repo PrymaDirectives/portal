@@ -1,31 +1,47 @@
-// Public invoice page — portal.pryma.tech/invoice/{invoiceID}
-// Full implementation in Phase 4
 import { notFound } from "next/navigation";
+import { getInvoiceByPublicId } from "@/lib/invoice";
+import { InvoiceView } from "@/components/invoice/InvoiceView";
 
 interface PageProps {
   params: Promise<{ invoiceID: string }>;
+  searchParams: Promise<{ payment?: string }>;
 }
 
 export default async function InvoicePage({ params }: PageProps) {
   const { invoiceID } = await params;
-
-  // TODO (Phase 2+): fetch invoice from DB
-  if (!invoiceID) notFound();
+  const invoice = await getInvoiceByPublicId(invoiceID);
+  if (!invoice) notFound();
 
   return (
-    <main className="min-h-screen bg-neutral-50 py-10">
-      <div className="mx-auto max-w-3xl px-4">
-        <p className="text-sm text-neutral-400">
-          Invoice <code>{invoiceID}</code> — full UI in Phase 4
-        </p>
+    <div className="min-h-screen bg-[#f7f6f3] py-12 px-4">
+      <div className="mx-auto max-w-2xl">
+        <InvoiceView invoice={invoice} />
+        {/* Footer */}
+        <div className="mt-8 text-center">
+          <p className="text-xs text-neutral-400 tracking-wide">
+            Powered by{" "}
+            <a
+              href="https://pryma.tech"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-neutral-500 hover:text-neutral-700 transition-colors"
+            >
+              Pryma
+            </a>
+          </p>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
 
 export async function generateMetadata({ params }: PageProps) {
   const { invoiceID } = await params;
+  const invoice = await getInvoiceByPublicId(invoiceID);
+  if (!invoice) return { title: "Invoice Not Found" };
   return {
-    title: `Invoice ${invoiceID} — Pryma`,
+    title: `Invoice ${invoice.invoiceNumber} — Pryma`,
+    description: `Invoice for ${invoice.clientName}: ${invoice.projectName}`,
+    robots: { index: false, follow: false },
   };
 }

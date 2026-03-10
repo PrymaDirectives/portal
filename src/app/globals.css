@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f6f3;
+  --foreground: #1a1a1a;
+  --invoice-bg: #ffffff;
+  --invoice-border: #e8e6e1;
+  --invoice-muted: #6b7280;
+  --invoice-accent: #0d0d0d;
+  --invoice-paid: #059669;
+  --invoice-overdue: #dc2626;
+  --invoice-pending: #d97706;
 }
 
 @theme inline {
@@ -12,15 +19,82 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans, "Geist", system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* ─── Invoice Sheet ──────────────────────────────────────────────────────── */
+
+.invoice-sheet {
+  background: var(--invoice-bg);
+  border: 1px solid var(--invoice-border);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.06),
+    0 24px 64px rgba(0, 0, 0, 0.04);
+}
+
+.invoice-section {
+  padding: 2rem 2.5rem;
+  border-bottom: 1px solid var(--invoice-border);
+}
+
+.invoice-section:last-child {
+  border-bottom: none;
+}
+
+/* ─── Typography ─────────────────────────────────────────────────────────── */
+
+.invoice-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--invoice-muted);
+}
+
+.invoice-value {
+  font-size: 0.9rem;
+  color: var(--foreground);
+  line-height: 1.5;
+}
+
+/* ─── Table ──────────────────────────────────────────────────────────────── */
+
+.invoice-table th {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--invoice-muted);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--invoice-border);
+}
+
+.invoice-table td {
+  font-size: 0.875rem;
+  padding: 0.75rem 0.75rem;
+  color: var(--foreground);
+  vertical-align: top;
+  border-bottom: 1px solid #f3f2ef;
+}
+
+.invoice-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ─── Status badges ──────────────────────────────────────────────────────── */
+
+.badge-paid        { background: #ecfdf5; color: #065f46; }
+.badge-unpaid      { background: #fffbeb; color: #92400e; }
+.badge-open        { background: #eff6ff; color: #1e40af; }
+.badge-processing  { background: #eef2ff; color: #3730a3; }
+.badge-overdue     { background: #fef2f2; color: #991b1b; }
+.badge-failed      { background: #fef2f2; color: #7f1d1d; }
+.badge-void        { background: #f3f4f6; color: #4b5563; }
+.badge-draft       { background: #f9fafb; color: #6b7280; }
+

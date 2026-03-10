@@ -1,15 +1,21 @@
-// Database client — implemented in Phase 1
-// Using Prisma with PostgreSQL
-// import { PrismaClient } from "@prisma/client";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaClient } from "@/generated/prisma/client";
 
-// declare global {
-//   var prisma: PrismaClient | undefined;
-// }
+function createDb() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not set");
+  const adapter = new PrismaLibSql({ url });
+  return new PrismaClient({
+    adapter,
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+  });
+}
 
-// export const db =
-//   global.prisma ??
-//   new PrismaClient({ log: ["query"] });
+declare global {
+  // eslint-disable-next-line no-var
+  var prisma: PrismaClient | undefined;
+}
 
-// if (process.env.NODE_ENV !== "production") global.prisma = db;
+export const db = global.prisma ?? createDb();
 
-export const db = null; // placeholder until Phase 1
+if (process.env.NODE_ENV !== "production") global.prisma = db;
