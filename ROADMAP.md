@@ -21,15 +21,15 @@
 
 - [x] Create repo under `PrymaDirectives/portal`
 - [x] Create project roadmap (`ROADMAP.md`)
-- [ ] Scaffold Next.js 14 app with TypeScript and App Router
-- [ ] Set up ESLint, Prettier, and `.editorconfig`
-- [ ] Configure `tsconfig.json` with strict mode
-- [ ] Set up `src/` directory structure and route layout
-- [ ] Add `.env.example` with all required variable keys
-- [ ] Add `.gitignore` (Next.js, Node, env, cloud)
-- [ ] Commit and push initial scaffold
+- [x] Scaffold Next.js 14 app with TypeScript and App Router
+- [x] Set up ESLint, Prettier, and `.editorconfig`
+- [x] Configure `tsconfig.json` with strict mode
+- [x] Set up `src/` directory structure and route layout
+- [x] Add `.env.example` with all required variable keys
+- [x] Add `.gitignore` (Next.js, Node, env, cloud)
+- [x] Commit and push initial scaffold
 
-> **Checkpoint 0:** Repo has a running `next dev` baseline. All configs present. Push to `main` and confirm GitHub shows green file tree.
+> **Checkpoint 0:** Repo has a running `next dev` baseline. All configs present. Push to `main` and confirm GitHub shows green file tree. ✅
 
 ---
 
@@ -264,4 +264,4 @@ ADMIN_EMAIL=
 
 ---
 
-*Last updated: Phase 0 — Repo initialized.*
+*Last updated: Phase 0 complete — Next.js scaffold live, all configs in place.*
