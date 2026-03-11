@@ -3,6 +3,9 @@ import { adminAuth } from "@/lib/firebase-admin";
 import AdminNav from "@/components/admin/AdminNav";
 import Providers from "./providers";
 
+// Force all admin routes to be server-rendered on demand (no static prerender)
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Admin — Pryma Invoice Portal",
 };
