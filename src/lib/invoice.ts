@@ -1,92 +1,122 @@
 /**
- * Invoice service — all DB operations for invoices
+ * Invoice service — all DB operations for invoices (Firestore)
  */
-import { db } from "@/lib/db";
+import { adminDb } from "@/lib/firebase-admin";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { Invoice, InvoiceLineItem } from "@/types/invoice";
-import type { Invoice as PrismaInvoice, InvoiceLineItem as PrismaLineItem } from "@/generated/prisma/client";
 
-// ─── Serializers ────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
-function serializeLineItem(item: PrismaLineItem): InvoiceLineItem {
+const INVOICES = "invoices";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toDate(v: unknown): Date {
+  if (!v) return new Date();
+  if (v instanceof Timestamp) return v.toDate();
+  if (v instanceof Date) return v;
+  return new Date(v as string);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function docToInvoice(id: string, data: Record<string, any>, lineItems: InvoiceLineItem[]): Invoice {
   return {
-    id: item.id,
-    invoiceId: item.invoiceId,
-    item: item.item,
-    description: item.description,
-    hours: item.hours,
-    rate: item.rate,
-    amount: item.amount,
+    id,
+    publicInvoiceId: data.publicInvoiceId ?? "",
+    invoiceNumber: data.invoiceNumber ?? "",
+    status: data.status ?? "unpaid",
+    dateIssued: toDate(data.dateIssued),
+    paymentDue: toDate(data.paymentDue),
+    paidAt: data.paidAt ? toDate(data.paidAt) : null,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+    senderName: data.senderName ?? "",
+    senderEmail: data.senderEmail ?? "",
+    senderLocation: data.senderLocation ?? "",
+    senderBrand: data.senderBrand ?? "",
+    clientName: data.clientName ?? "",
+    clientContact: data.clientContact ?? "",
+    clientEmail: data.clientEmail ?? "",
+    projectName: data.projectName ?? "",
+    projectDescription: data.projectDescription ?? "",
+    currency: data.currency ?? "USD",
+    hoursWorked: data.hoursWorked ?? 0,
+    hourlyRate: data.hourlyRate ?? 0,
+    subtotal: data.subtotal ?? 0,
+    taxAmount: data.taxAmount ?? 0,
+    totalDue: data.totalDue ?? 0,
+    toolsUsed: data.toolsUsed ?? [],
+    notes: data.notes ?? "",
+    stripeCustomerId: data.stripeCustomerId ?? null,
+    stripeCheckoutSessionId: data.stripeCheckoutSessionId ?? null,
+    stripePaymentIntentId: data.stripePaymentIntentId ?? null,
+    stripePaymentLink: data.stripePaymentLink ?? null,
+    stripeStatus: data.stripeStatus ?? null,
+    webhookLastSyncedAt: data.webhookLastSyncedAt ? toDate(data.webhookLastSyncedAt) : null,
+    pdfUrl: data.pdfUrl ?? null,
+    pdfVersion: data.pdfVersion ?? 0,
+    pdfGeneratedAt: data.pdfGeneratedAt ? toDate(data.pdfGeneratedAt) : null,
+    internalNotes: data.internalNotes ?? null,
+    createdBy: data.createdBy ?? null,
+    lastEditedBy: data.lastEditedBy ?? null,
+    lineItems,
   };
 }
 
-function serializeInvoice(inv: PrismaInvoice & { lineItems: PrismaLineItem[] }): Invoice {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function docToLineItem(id: string, invoiceId: string, data: Record<string, any>): InvoiceLineItem {
   return {
-    id: inv.id,
-    publicInvoiceId: inv.publicInvoiceId,
-    invoiceNumber: inv.invoiceNumber,
-    status: inv.status as Invoice["status"],
-    dateIssued: inv.dateIssued,
-    paymentDue: inv.paymentDue,
-    paidAt: inv.paidAt ?? null,
-    createdAt: inv.createdAt,
-    updatedAt: inv.updatedAt,
-    senderName: inv.senderName,
-    senderEmail: inv.senderEmail,
-    senderLocation: inv.senderLocation,
-    senderBrand: inv.senderBrand,
-    clientName: inv.clientName,
-    clientContact: inv.clientContact,
-    clientEmail: inv.clientEmail,
-    projectName: inv.projectName,
-    projectDescription: inv.projectDescription,
-    currency: inv.currency,
-    hoursWorked: inv.hoursWorked,
-    hourlyRate: inv.hourlyRate,
-    subtotal: inv.subtotal,
-    taxAmount: inv.taxAmount,
-    totalDue: inv.totalDue,
-    toolsUsed: JSON.parse(inv.toolsUsedJson) as string[],
-    notes: inv.notes,
-    stripeCustomerId: inv.stripeCustomerId ?? null,
-    stripeCheckoutSessionId: inv.stripeCheckoutSessionId ?? null,
-    stripePaymentIntentId: inv.stripePaymentIntentId ?? null,
-    stripePaymentLink: inv.stripePaymentLink ?? null,
-    stripeStatus: inv.stripeStatus ?? null,
-    webhookLastSyncedAt: inv.webhookLastSyncedAt ?? null,
-    pdfUrl: inv.pdfUrl ?? null,
-    pdfVersion: inv.pdfVersion,
-    pdfGeneratedAt: inv.pdfGeneratedAt ?? null,
-    internalNotes: inv.internalNotes ?? null,
-    createdBy: inv.createdBy ?? null,
-    lastEditedBy: inv.lastEditedBy ?? null,
-    lineItems: inv.lineItems.map(serializeLineItem),
+    id,
+    invoiceId,
+    item: data.item ?? "",
+    description: data.description ?? "",
+    hours: data.hours ?? 0,
+    rate: data.rate ?? 0,
+    amount: data.amount ?? 0,
   };
+}
+
+async function fetchLineItems(invoiceId: string): Promise<InvoiceLineItem[]> {
+  const snap = await adminDb
+    .collection(INVOICES)
+    .doc(invoiceId)
+    .collection("lineItems")
+    .orderBy("sortOrder", "asc")
+    .get();
+  return snap.docs.map((d) => docToLineItem(d.id, invoiceId, d.data() as Record<string, unknown>));
 }
 
 // ─── Queries ────────────────────────────────────────────────────────────────
 
 export async function getInvoiceByPublicId(publicInvoiceId: string): Promise<Invoice | null> {
-  const inv = await db!.invoice.findUnique({
-    where: { publicInvoiceId },
-    include: { lineItems: { orderBy: { sortOrder: "asc" } } },
-  });
-  return inv ? serializeInvoice(inv) : null;
+  const snap = await adminDb
+    .collection(INVOICES)
+    .where("publicInvoiceId", "==", publicInvoiceId)
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  const lineItems = await fetchLineItems(doc.id);
+  return docToInvoice(doc.id, doc.data() as Record<string, unknown>, lineItems);
 }
 
 export async function getInvoiceById(id: string): Promise<Invoice | null> {
-  const inv = await db!.invoice.findUnique({
-    where: { id },
-    include: { lineItems: { orderBy: { sortOrder: "asc" } } },
-  });
-  return inv ? serializeInvoice(inv) : null;
+  const doc = await adminDb.collection(INVOICES).doc(id).get();
+  if (!doc.exists) return null;
+  const lineItems = await fetchLineItems(id);
+  return docToInvoice(id, doc.data() as Record<string, unknown>, lineItems);
 }
 
 export async function getAllInvoices(): Promise<Invoice[]> {
-  const invs = await db!.invoice.findMany({
-    include: { lineItems: { orderBy: { sortOrder: "asc" } } },
-    orderBy: { createdAt: "desc" },
-  });
-  return invs.map(serializeInvoice);
+  const snap = await adminDb
+    .collection(INVOICES)
+    .orderBy("createdAt", "desc")
+    .get();
+  return Promise.all(
+    snap.docs.map(async (doc) => {
+      const lineItems = await fetchLineItems(doc.id);
+      return docToInvoice(doc.id, doc.data() as Record<string, unknown>, lineItems);
+    })
+  );
 }
 
 // ─── Mutations ──────────────────────────────────────────────────────────────
@@ -127,42 +157,56 @@ export interface CreateInvoiceInput {
 }
 
 export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice> {
-  const inv = await db!.invoice.create({
-    data: {
-      publicInvoiceId: input.publicInvoiceId,
-      invoiceNumber: input.invoiceNumber,
-      status: input.status ?? "unpaid",
-      dateIssued: input.dateIssued,
-      paymentDue: input.paymentDue,
-      senderName: input.senderName,
-      senderEmail: input.senderEmail,
-      senderLocation: input.senderLocation,
-      senderBrand: input.senderBrand,
-      clientName: input.clientName,
-      clientContact: input.clientContact,
-      clientEmail: input.clientEmail,
-      projectName: input.projectName,
-      projectDescription: input.projectDescription,
-      currency: input.currency ?? "USD",
-      hoursWorked: input.hoursWorked,
-      hourlyRate: input.hourlyRate,
-      subtotal: input.subtotal,
-      taxAmount: input.taxAmount ?? 0,
-      totalDue: input.totalDue,
-      toolsUsedJson: JSON.stringify(input.toolsUsed ?? []),
-      notes: input.notes ?? "",
-      internalNotes: input.internalNotes,
-      createdBy: input.createdBy,
-      lineItems: {
-        create: input.lineItems.map((li, i) => ({
-          ...li,
-          sortOrder: li.sortOrder ?? i,
-        })),
-      },
-    },
-    include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+  const now = FieldValue.serverTimestamp();
+  const ref = adminDb.collection(INVOICES).doc();
+  const data = {
+    publicInvoiceId: input.publicInvoiceId,
+    invoiceNumber: input.invoiceNumber,
+    status: input.status ?? "unpaid",
+    dateIssued: Timestamp.fromDate(input.dateIssued),
+    paymentDue: Timestamp.fromDate(input.paymentDue),
+    senderName: input.senderName,
+    senderEmail: input.senderEmail,
+    senderLocation: input.senderLocation,
+    senderBrand: input.senderBrand,
+    clientName: input.clientName,
+    clientContact: input.clientContact,
+    clientEmail: input.clientEmail,
+    projectName: input.projectName,
+    projectDescription: input.projectDescription,
+    currency: input.currency ?? "USD",
+    hoursWorked: input.hoursWorked,
+    hourlyRate: input.hourlyRate,
+    subtotal: input.subtotal,
+    taxAmount: input.taxAmount ?? 0,
+    totalDue: input.totalDue,
+    toolsUsed: input.toolsUsed ?? [],
+    notes: input.notes ?? "",
+    internalNotes: input.internalNotes ?? null,
+    createdBy: input.createdBy ?? null,
+    lastEditedBy: null,
+    stripeCustomerId: null,
+    stripeCheckoutSessionId: null,
+    stripePaymentIntentId: null,
+    stripePaymentLink: null,
+    stripeStatus: null,
+    webhookLastSyncedAt: null,
+    pdfUrl: null,
+    pdfVersion: 0,
+    pdfGeneratedAt: null,
+    paidAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const batch = adminDb.batch();
+  batch.set(ref, data);
+  input.lineItems.forEach((li, i) => {
+    const liRef = ref.collection("lineItems").doc();
+    batch.set(liRef, { ...li, sortOrder: li.sortOrder ?? i });
   });
-  return serializeInvoice(inv);
+  await batch.commit();
+  const created = await getInvoiceById(ref.id);
+  return created!;
 }
 
 export interface UpdateInvoiceInput {
@@ -190,19 +234,28 @@ export interface UpdateInvoiceInput {
 }
 
 export async function updateInvoice(id: string, input: UpdateInvoiceInput): Promise<Invoice> {
-  const inv = await db!.invoice.update({
-    where: { id },
-    data: {
-      ...input,
-      toolsUsedJson: input.toolsUsed ? JSON.stringify(input.toolsUsed) : undefined,
-    },
-    include: { lineItems: { orderBy: { sortOrder: "asc" } } },
-  });
-  return serializeInvoice(inv);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: Record<string, any> = { updatedAt: FieldValue.serverTimestamp() };
+  const dateFields = ["paymentDue", "paidAt", "webhookLastSyncedAt", "pdfGeneratedAt"] as const;
+  for (const [k, v] of Object.entries(input)) {
+    if (v === undefined) continue;
+    if (dateFields.includes(k as typeof dateFields[number])) {
+      data[k] = v instanceof Date ? Timestamp.fromDate(v) : null;
+    } else {
+      data[k] = v;
+    }
+  }
+  await adminDb.collection(INVOICES).doc(id).update(data);
+  return (await getInvoiceById(id))!;
 }
 
 export async function deleteInvoice(id: string): Promise<void> {
-  await db!.invoice.delete({ where: { id } });
+  // Delete subcollection first
+  const liSnap = await adminDb.collection(INVOICES).doc(id).collection("lineItems").get();
+  const batch = adminDb.batch();
+  liSnap.docs.forEach((d) => batch.delete(d.ref));
+  batch.delete(adminDb.collection(INVOICES).doc(id));
+  await batch.commit();
 }
 
 export async function markInvoicePaid(
@@ -220,3 +273,30 @@ export async function markInvoicePaid(
     ...stripeData,
   });
 }
+
+// ─── Stripe webhook event log ────────────────────────────────────────────────
+
+export async function logWebhookEvent(params: {
+  stripeEventId: string;
+  type: string;
+  invoiceId?: string | null;
+  payload: object;
+}): Promise<void> {
+  const ref = adminDb
+    .collection(INVOICES)
+    .doc(params.invoiceId ?? "_global")
+    .collection("webhookEvents")
+    .doc(params.stripeEventId);
+  // upsert: only write if it doesn't exist
+  const doc = await ref.get();
+  if (!doc.exists) {
+    await ref.set({
+      stripeEventId: params.stripeEventId,
+      type: params.type,
+      invoiceId: params.invoiceId ?? null,
+      payloadJson: JSON.stringify(params.payload),
+      processedAt: FieldValue.serverTimestamp(),
+    });
+  }
+}
+

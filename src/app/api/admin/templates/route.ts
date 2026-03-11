@@ -13,7 +13,7 @@ const LineItemSchema = z.object({
 
 const CreateSchema = z.object({
   name: z.string().min(1),
-  ownerEmail: z.string().email(),
+  ownerEmail: z.string().email().optional().or(z.literal("")),
   description: z.string().optional(),
   senderName: z.string().optional(),
   senderEmail: z.string().optional(),

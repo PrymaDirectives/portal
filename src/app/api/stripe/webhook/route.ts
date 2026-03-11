@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
-import { db } from "@/lib/db";
-import { markInvoicePaid, updateInvoice } from "@/lib/invoice";
+import { logWebhookEvent, markInvoicePaid, updateInvoice } from "@/lib/invoice";
 
 export async function POST(req: NextRequest) {
   if (!stripe) {
@@ -26,15 +25,11 @@ export async function POST(req: NextRequest) {
   const invoiceId = metadata.invoiceId;
   // Log the event
   try {
-    await db!.stripeWebhookEvent.upsert({
-      where: { stripeEventId: event.id },
-      update: {},
-      create: {
-        stripeEventId: event.id,
-        type: event.type,
-        invoiceId: invoiceId ?? null,
-        payloadJson: JSON.stringify(event.data.object),
-      },
+    await logWebhookEvent({
+      stripeEventId: event.id,
+      type: event.type,
+      invoiceId: invoiceId ?? null,
+      payload: event.data.object as object,
     });
   } catch (err) {
     console.error("[Webhook] Failed to log event:", err);
