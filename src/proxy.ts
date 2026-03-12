@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { adminAuth } from "@/lib/firebase-admin";
 
-/**
- * Auth middleware — verifies Firebase session cookie via the Admin SDK.
- * We call the /api/auth/verify edge-compatible helper rather than
- * importing firebase-admin directly (firebase-admin is Node-only).
- */
+// Must run in Node.js runtime — firebase-admin is Node-only and the
+// self-referential fetch approach causes ERR_SSL_PACKET_LENGTH_TOO_LONG
+// on Cloud Run because internal routing returns plain HTTP while the
+// client expects TLS.
+export const runtime = "nodejs";
+
 export async function proxy(req: NextRequest) {
   const isAdminRoute =
     req.nextUrl.pathname.startsWith("/admin") &&
@@ -19,19 +21,12 @@ export async function proxy(req: NextRequest) {
     return unauthorized(req, isAdminApi);
   }
 
-  // Verify session cookie by calling our own internal verify endpoint
-  const verifyUrl = new URL("/api/auth/verify", req.nextUrl.origin);
-  const verifyRes = await fetch(verifyUrl.toString(), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionCookie }),
-  });
-
-  if (!verifyRes.ok) {
+  try {
+    await adminAuth.verifySessionCookie(sessionCookie, true);
+    return NextResponse.next();
+  } catch {
     return unauthorized(req, isAdminApi);
   }
-
-  return NextResponse.next();
 }
 
 function unauthorized(req: NextRequest, isApi: boolean) {
