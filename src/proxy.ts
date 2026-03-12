@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase-admin";
 
-// Must run in Node.js runtime — firebase-admin is Node-only and the
-// self-referential fetch approach causes ERR_SSL_PACKET_LENGTH_TOO_LONG
-// on Cloud Run because internal routing returns plain HTTP while the
-// client expects TLS.
-export const runtime = "nodejs";
-
 export async function proxy(req: NextRequest) {
   const isAdminRoute =
     req.nextUrl.pathname.startsWith("/admin") &&
@@ -37,7 +31,3 @@ function unauthorized(req: NextRequest, isApi: boolean) {
   loginUrl.searchParams.set("callbackUrl", req.nextUrl.pathname);
   return NextResponse.redirect(loginUrl);
 }
-
-export const config = {
-  matcher: ["/admin/((?!login).*)", "/api/admin/:path*"],
-};
